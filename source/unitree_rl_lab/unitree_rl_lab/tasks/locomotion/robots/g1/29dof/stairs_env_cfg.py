@@ -21,20 +21,20 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG as ROBOT_CFG
 from unitree_rl_lab.tasks.locomotion import mdp
 
-COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
-    size=(8.0, 8.0),
-    border_width=20.0,
-    num_rows=9,
-    num_cols=21,
-    horizontal_scale=0.1,
-    vertical_scale=0.005,
-    slope_threshold=0.75,
-    difficulty_range=(0.0, 1.0),
-    use_cache=False,
-    sub_terrains={
-        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
-    },
-)
+# COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
+#     size=(8.0, 8.0),
+#     border_width=20.0,
+#     num_rows=9,
+#     num_cols=21,
+#     horizontal_scale=0.1,
+#     vertical_scale=0.005,
+#     slope_threshold=0.75,
+#     difficulty_range=(0.0, 1.0),
+#     use_cache=False,
+#     sub_terrains={
+#         "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
+#     },
+# )
 
 STAIRS_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
     size=(8.0, 8.0),
@@ -47,12 +47,12 @@ STAIRS_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
     difficulty_range=(0.0, 1.0),
     use_cache=False,
     sub_terrains={
-        # 少量平地
-        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.2),
-        # 楼梯
+        # 1. 平地比例
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
+        # 2. 楼梯比例
         "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
-            proportion=0.8,
-            step_height_range=(0.03, 0.12),  # curriculum 会从低到高
+            proportion=0.5,
+            step_height_range=(0.01, 0.12),
             step_width=0.30,
             platform_width=3.0,
             border_width=1.0,
@@ -67,46 +67,53 @@ class RobotSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
     # ground terrain
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
+    terrain = TerrainImporterCfg(  #  地形配置参数，用于导入和设置地形
+        prim_path="/World/ground",  #  地形在场景中的基础路径
         terrain_type="generator",  # "plane", "generator"
         terrain_generator=STAIRS_TERRAIN_CFG,  # None, ROUGH_TERRAINS_CFG
-        max_init_terrain_level=STAIRS_TERRAIN_CFG.num_rows - 1,
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
+        max_init_terrain_level=STAIRS_TERRAIN_CFG.num_rows
+        - 1,  #  初始化地形最大级别为楼梯地形配置的行数减一
+        collision_group=0,  #  碰撞组设置为-1，表示不进行碰撞检测
+        physics_material=sim_utils.RigidBodyMaterialCfg(  #  物理材质配置，设置摩擦系数和恢复系数的组合方式
+            friction_combine_mode="multiply",  #  摩擦系数组合方式为相乘
+            restitution_combine_mode="multiply",  #  恢复系数组合方式为相乘
+            static_friction=1.0,  #  静态摩擦系数设置为1.0
+            dynamic_friction=1.0,  #  动态摩擦系数设置为1.0
         ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-            project_uvw=True,
-            texture_scale=(0.25, 0.25),
+        visual_material=sim_utils.MdlFileCfg(  #  视觉材质配置，指定模型文件路径
+            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",  #  模型文件的完整路径
+            project_uvw=True,  #  启用UVW投影
+            texture_scale=(0.25, 0.25),  #  设置纹理缩放比例为0.25 x 0.25
         ),
-        debug_vis=False,
+        debug_vis=False,  #  禁用可视化调试
     )
     # robots
-    robot: ArticulationCfg = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = ROBOT_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot"
+    )  #  配置机器人模型，使用ROBOT_CFG替换其中的prim_path参数
 
     # sensors
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/torso_link",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 1.5)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
+    height_scanner = RayCasterCfg(  #  创建高度扫描器配置，用于射线投射
+        prim_path="{ENV_REGEX_NS}/Robot/torso_link",  #  设置射线扫描的主体路径
+        offset=RayCasterCfg.OffsetCfg(
+            pos=(0.0, 0.0, 1.5)
+        ),  #  设置射线相对于主体的偏移量，位置为(0.0, 0.0, 1.5)
+        ray_alignment="yaw",  #  设置射线对齐方式为偏航角(yaw)
+        pattern_cfg=patterns.GridPatternCfg(
+            resolution=0.1, size=[1.6, 1.0]
+        ),  #  设置网格图案配置，分辨率为0.1，大小为[1.6, 1.0]
+        debug_vis=True,  #  启用可视化调试
+        mesh_prim_paths=["/World/ground"],  #  指定要进行射线投射的网格主体路径
     )
-    contact_forces = ContactSensorCfg(
+    contact_forces = ContactSensorCfg(  #  创建接触力传感器配置
         prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True
-    )
-    # lights
-    sky_light = AssetBaseCfg(
-        prim_path="/World/skyLight",
-        spawn=sim_utils.DomeLightCfg(
-            intensity=750.0,
-            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+    )  #  结束某个配置块，具体是哪个配置块需要根据上下文确定
+    # lights - 注释：灯光配置部分
+    sky_light = AssetBaseCfg(  #  创建一个名为sky_light的资产基础配置对象
+        prim_path="/World/skyLight",  #  指定此灯光在场景中的路径
+        spawn=sim_utils.DomeLightCfg(  #  使用sim_utils模块中的DomeLightCfg配置半球灯光
+            intensity=750.0,  #  设置灯光强度为750.0
+            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",  #  指定使用的环境贴图文件路径
         ),
     )
 
@@ -155,9 +162,9 @@ class EventCfg:
         params={
             "pose_range": {
                 "x": (-5.0, -4.0),
-                "y": (-1, -1),
-                "z": (-0.6, -0.6),
-                "yaw": (-0.3, 0.3),
+                "y": (-0.2, -0.2),
+                "z": (0.75, 0.80),
+                "yaw": (-0.1, 0.1),
             },
             "velocity_range": {
                 "x": (0.0, 0.0),
@@ -290,7 +297,7 @@ class RewardsCfg:
     # -- task
     track_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=1.5,
+        weight=1.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     track_ang_vel_z = RewTerm(
@@ -302,11 +309,11 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=0.15)
 
     # -- base
-    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.05)
+    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-5.0)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
 
@@ -326,7 +333,7 @@ class RewardsCfg:
     )
     joint_deviation_waists = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.8,
+        weight=-0.1,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -349,7 +356,7 @@ class RewardsCfg:
     # -- robot
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     base_height = RewTerm(
-        func=mdp.base_height_l2, weight=-0.2, params={"target_height": 0.78}
+        func=mdp.base_height_l2, weight=-0.5, params={"target_height": 0.75}
     )
 
     # -- feet
@@ -386,9 +393,9 @@ class RewardsCfg:
     # -- other
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
-        weight=-0.5,
+        weight=1.0,
         params={
-            "threshold": 1,
+            "threshold": 1.0,
             "sensor_cfg": SceneEntityCfg(
                 "contact_forces", body_names=["(?!.*ankle.*).*"]
             ),
@@ -396,10 +403,10 @@ class RewardsCfg:
     )
     stair_progress = RewTerm(
         func=mdp.stair_progress,
-        weight=3,
+        weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "forward_axis": 1,  # 楼梯“上行方向”对应世界系哪个轴：0=x, 1=y
+            "forward_axis": 0,  # 楼梯“上行方向”对应世界系哪个轴：0=x, 1=y
             "up_axis": 2,
             "w_forward": 1.0,
             "w_up": 0.3,
@@ -417,7 +424,7 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     base_height = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": 0.25}
+        func=mdp.root_height_below_minimum, params={"minimum_height": 0.5}
     )
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 30})
 
