@@ -337,7 +337,7 @@ def stair_progress(
 
     # rew = w_forward * d_forward + w_up * d_up
     d_forward = torch.clamp(d_forward, max=0.1)
-    d_up = torch.clamp(d_up, max=max_up_per_step)  # 你之前只clamp了up，没clamp forward
+    d_up = torch.clamp(d_up, max=max_up_per_step)
 
     rew = w_forward * d_forward + w_up * d_up
 

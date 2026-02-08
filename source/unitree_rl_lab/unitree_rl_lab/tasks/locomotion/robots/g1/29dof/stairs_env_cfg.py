@@ -89,7 +89,30 @@ class RobotSceneCfg(InteractiveSceneCfg):
     )
     # robots
     robot: ArticulationCfg = ROBOT_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot"
+        prim_path="{ENV_REGEX_NS}/Robot",
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.5),
+            joint_pos={
+                ".*_hip_pitch_joint": -0.2,  # 髋关节微屈
+                ".*_knee_joint": 0.4,  # 膝盖微弯
+                ".*_ankle_pitch_joint": -0.2,  # 脚踝微扣
+                "waist_yaw_joint": 0.0,
+                ".*_shoulder_pitch_joint": 0.0,
+                ".*_elbow_joint": 0.97,
+                #  初始姿态
+                # "left_hip_pitch_joint": -0.1,
+                # "right_hip_pitch_joint": -0.1,
+                # ".*_knee_joint": 0.3,
+                # ".*_ankle_pitch_joint": -0.2,
+                # ".*_shoulder_pitch_joint": 0.3,
+                # "left_shoulder_roll_joint": 0.25,
+                # "right_shoulder_roll_joint": -0.25,
+                # ".*_elbow_joint": 0.97,
+                # "left_wrist_roll_joint": 0.15,
+                # "right_wrist_roll_joint": -0.15,
+            },
+            joint_vel={".*": 0.0},
+        ),
     )  #  配置机器人模型，使用ROBOT_CFG替换其中的prim_path参数
 
     # sensors
@@ -106,7 +129,10 @@ class RobotSceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/ground"],  #  指定要进行射线投射的网格主体路径
     )
     contact_forces = ContactSensorCfg(  #  创建接触力传感器配置
-        prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        history_length=3,
+        debug_vis=True,
+        track_air_time=True,
     )  #  结束某个配置块，具体是哪个配置块需要根据上下文确定
     # lights - 注释：灯光配置部分
     sky_light = AssetBaseCfg(  #  创建一个名为sky_light的资产基础配置对象
@@ -163,7 +189,7 @@ class EventCfg:
             "pose_range": {
                 "x": (-5.0, -4.0),
                 "y": (-0.2, -0.2),
-                "z": (0.75, 0.80),
+                "z": (0.5, 0.52),
                 "yaw": (-0.1, 0.1),
             },
             "velocity_range": {
@@ -182,7 +208,7 @@ class EventCfg:
         mode="reset",
         params={
             "position_range": (1.0, 1.0),
-            "velocity_range": (-1.0, 1.0),
+            "velocity_range": (0, 0),
         },
     )
 
@@ -220,7 +246,7 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     JointPositionAction = mdp.JointPositionActionCfg(
-        asset_name="robot", joint_names=[".*"], scale=0.25, use_default_offset=True
+        asset_name="robot", joint_names=[".*"], scale=0.1, use_default_offset=True
     )
 
 
@@ -345,7 +371,7 @@ class RewardsCfg:
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-1.0,
+        weight=-0.05,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot", joint_names=[".*_hip_roll_joint", ".*_hip_yaw_joint"]
@@ -356,7 +382,7 @@ class RewardsCfg:
     # -- robot
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
     base_height = RewTerm(
-        func=mdp.base_height_l2, weight=-0.5, params={"target_height": 0.75}
+        func=mdp.base_height_l2, weight=-0.5, params={"target_height": 0.62}
     )
 
     # -- feet
@@ -424,7 +450,7 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     base_height = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": 0.5}
+        func=mdp.root_height_below_minimum, params={"minimum_height": 0.35}
     )
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 30})
 
