@@ -4,8 +4,9 @@ import torch
 from typing import TYPE_CHECKING
 
 try:
-    from isaaclab.utils.math import quat_apply_inverse
+    from isaaclab.utils.math import quat_apply, quat_apply_inverse
 except ImportError:
+    from isaaclab.utils.math import quat_rotate as quat_apply
     from isaaclab.utils.math import quat_rotate_inverse as quat_apply_inverse
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -289,6 +290,52 @@ def joint_mirror(
             dim=-1,
         )
     reward *= 1 / len(mirror_joints) if len(mirror_joints) > 0 else 0
+    return reward
+
+
+def heading_alignment(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """奖励机器人身体前向矢量（X轴）与世界坐标系前向矢量（通常是X轴）对齐，确保不侧着爬楼梯"""
+    asset = env.scene[asset_cfg.name]
+    # 获取机器人当前的前向矢量在世界系下的表示
+    # 假设机器人的前向是其局部坐标系的 +X 轴
+    forward_w = quat_apply(
+        asset.data.root_quat_w,
+        torch.tensor([1.0, 0.0, 0.0], device=env.device).repeat(env.num_envs, 1),
+    )
+    # 计算与世界坐标系 X 轴 [1, 0, 0] 的点积（即余弦相似度）
+    return forward_w[:, 0]  # 值在 [-1, 1] 之间，1表示完全对齐
+
+
+def stair_milestone_reward(
+    env: ManagerBasedRLEnv,
+    threshold_height: float = 0.2,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """阶段性奖励：每爬升一定高度给予一次性大额奖励，帮助跳出局部最优"""
+    asset = env.scene[asset_cfg.name]
+    current_height = asset.data.root_pos_w[:, 2]
+
+    # 初始化缓存记录已达到的最高高度
+    if not hasattr(env, "_max_height_reached"):
+        env._max_height_reached = torch.zeros(env.num_envs, device=env.device)
+
+    # 重置时清理缓存
+    reset_ids = env.episode_length_buf == 0
+    if torch.any(reset_ids):
+        env._max_height_reached[reset_ids] = current_height[reset_ids]
+
+    # 计算是否突破了新的高度阈值阶段
+    # 例如每升高 0.2m 给一次奖励
+    diff = current_height - env._max_height_reached
+    reward = torch.where(
+        diff > threshold_height, torch.ones_like(diff), torch.zeros_like(diff)
+    )
+
+    # 更新最大高度记录
+    env._max_height_reached = torch.max(env._max_height_reached, current_height)
+
     return reward
 
 

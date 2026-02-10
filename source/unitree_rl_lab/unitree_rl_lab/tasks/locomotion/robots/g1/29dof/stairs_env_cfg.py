@@ -52,7 +52,7 @@ STAIRS_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
         # 2. 楼梯比例
         "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
             proportion=0.5,
-            step_height_range=(0.01, 0.12),
+            step_height_range=(0.0, 0.08),
             step_width=0.30,
             platform_width=3.0,
             border_width=1.0,
@@ -323,7 +323,7 @@ class RewardsCfg:
     # -- task
     track_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=1.0,
+        weight=2.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
     )
     track_ang_vel_z = RewTerm(
@@ -338,9 +338,9 @@ class RewardsCfg:
     base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
-    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-5.0)
+    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=0)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
 
     joint_deviation_arms = RewTerm(
@@ -411,7 +411,7 @@ class RewardsCfg:
         params={
             "std": 0.05,
             "tanh_mult": 2.0,
-            "target_height": 0.15,
+            "target_height": 0.12,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
         },
     )
@@ -435,12 +435,18 @@ class RewardsCfg:
             "forward_axis": 0,  # 楼梯“上行方向”对应世界系哪个轴：0=x, 1=y
             "up_axis": 2,
             "w_forward": 1.0,
-            "w_up": 0.3,
+            "w_up": 1.0,
             "only_forward": True,
             "up_requires_forward": True,
             "max_up_per_step": 0.02,
             "scale_by_dt": True,
         },
+    )
+    body_heading = RewTerm(func=mdp.heading_alignment, weight=0.5)
+    stair_milestone = RewTerm(
+        func=mdp.stair_milestone_reward,
+        weight=5.0,  # 较大权重，一次性奖励
+        params={"threshold_height": 0.15},  # 假设一级台阶左右的高度
     )
 
 
@@ -452,7 +458,7 @@ class TerminationsCfg:
     base_height = DoneTerm(
         func=mdp.root_height_below_minimum, params={"minimum_height": 0.35}
     )
-    bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 30})
+    bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 45})
 
 
 @configclass
