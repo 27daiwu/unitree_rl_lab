@@ -342,56 +342,60 @@ def stair_milestone_reward(
 def stair_progress(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    forward_axis: int = 0,  # 0:x, 1:y (世界系)
     up_axis: int = 2,  # 2:z
     w_forward: float = 1.0,
-    w_up: float = 0.3,
+    w_up: float = 1.0,
     only_forward: bool = True,  # 只奖励前进(Δ>0)，避免倒退刷分
     up_requires_forward: bool = True,  # 只有前进时才给上爬奖励，防止原地蹦
-    max_up_per_step: float = 0.02,  # 限幅，防跳跃hack（按dt可调）
+    max_up_per_step: float = 0.02,  # 限幅，防跳跃hack
     scale_by_dt: bool = True,
 ) -> torch.Tensor:
-    """Reward progress on stairs using forward displacement + upward displacement (per-step delta)."""
+    """Reward progress on stairs using local forward displacement + upward displacement."""
 
     asset = env.scene[asset_cfg.name]
     pos_w = asset.data.root_pos_w  # (num_envs, 3)
 
-    # lazy buffer init
+    # 初始化上一帧位置缓存
     if not hasattr(env, "_stair_last_pos_w"):
         env._stair_last_pos_w = pos_w.clone()
 
-    # reset handling: when episode length is zero, align last_pos to current
-    # (ManagerBasedRLEnv has episode_length_buf in your codebase)
+    # 处理环境重置：将 last_pos 对齐到当前 pos
     reset_ids = env.episode_length_buf == 0
     if torch.any(reset_ids):
         env._stair_last_pos_w[reset_ids] = pos_w[reset_ids]
 
+    # 计算世界坐标系下的位移
     dpos = pos_w - env._stair_last_pos_w
     env._stair_last_pos_w[:] = pos_w
 
-    d_forward = dpos[:, forward_axis]
+    # 获取机器人当前在世界系下的前向矢量（局部X轴）
+    forward_vec = torch.tensor([1.0, 0.0, 0.0], device=env.device).repeat(
+        env.num_envs, 1
+    )
+    forward_w = quat_apply(asset.data.root_quat_w, forward_vec)
+
+    # 计算沿机器人朝向的位移（点积投影）
+    d_forward = torch.sum(dpos * forward_w, dim=-1)
     d_up = dpos[:, up_axis]
 
+    # 逻辑过滤与限幅
     if only_forward:
         d_forward = torch.clamp(d_forward, min=0.0)
 
-    # up reward only when actually moving forward (anti "bounce in place")
     if up_requires_forward:
         d_up = torch.where(d_forward > 0.0, d_up, torch.zeros_like(d_up))
 
-    # only reward upward movement and clamp to avoid jump hacking
     d_up = torch.clamp(d_up, min=0.0, max=max_up_per_step)
-
-    # rew = w_forward * d_forward + w_up * d_up
     d_forward = torch.clamp(d_forward, max=0.1)
-    d_up = torch.clamp(d_up, max=max_up_per_step)
 
+    # 计算总奖励
     rew = w_forward * d_forward + w_up * d_up
 
     if scale_by_dt:
         rew = rew / env.step_dt
 
     return rew
+
 
 def base_height_relative_l2(
     env: ManagerBasedRLEnv,
@@ -404,15 +408,15 @@ def base_height_relative_l2(
     此方法在斜坡和楼梯上数值更稳定，可避免地形网格突变造成的奖励尖峰。
     """
     asset = env.scene[asset_cfg.name]
-    
+
     # 1. 获取基座 Z 轴高度
     base_z = asset.data.root_pos_w[:, 2]
-    
+
     # 2. 获取目标脚部 Link 的 Z 轴高度并求平均
     feet_z = asset.data.body_pos_w[:, foot_cfg.body_ids, 2]
     mean_feet_z = torch.mean(feet_z, dim=1)
-    
+
     # 3. 计算相对高度
     relative_height = base_z - mean_feet_z
-    
+
     return torch.square(relative_height - target_height)

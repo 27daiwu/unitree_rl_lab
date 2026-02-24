@@ -21,21 +21,6 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG as ROBOT_CFG
 from unitree_rl_lab.tasks.locomotion import mdp
 
-# COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
-#     size=(8.0, 8.0),
-#     border_width=20.0,
-#     num_rows=9,
-#     num_cols=21,
-#     horizontal_scale=0.1,
-#     vertical_scale=0.005,
-#     slope_threshold=0.75,
-#     difficulty_range=(0.0, 1.0),
-#     use_cache=False,
-#     sub_terrains={
-#         "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
-#     },
-# )
-
 STAIRS_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
     size=(8.0, 8.0),
     border_width=20.0,
@@ -50,7 +35,7 @@ STAIRS_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
         # 1. 平地比例
         "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
         # 2. 楼梯比例
-        "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
+        "pyramid_stairs": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
             proportion=0.5,
             step_height_range=(0.0, 0.08),
             step_width=0.30,
@@ -91,7 +76,7 @@ class RobotSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = ROBOT_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
+            pos=(0.0, 0.0, 0.72),
             joint_pos={
                 ".*_hip_pitch_joint": -0.2,  # 髋关节微屈
                 ".*_knee_joint": 0.4,  # 膝盖微弯
@@ -187,9 +172,9 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-5.0, -4.0),
-                "y": (-0.2, -0.2),
-                "z": (0.5, 0.52),
+                "x": (-0.5, 0.5),
+                "y": (-0.5, 0.5),
+                "z": (0.70, 0.75),
                 "yaw": (-0.1, 0.1),
             },
             "velocity_range": {
@@ -260,7 +245,10 @@ class ObservationsCfg:
 
         # observation terms (order preserved)
         base_ang_vel = ObsTerm(
-            func=mdp.base_ang_vel, scale=0.2, noise=Unoise(n_min=-0.2, n_max=0.2)
+            func=mdp.base_ang_vel,
+            scale=0.2,
+            noise=Unoise(n_min=-0.2, n_max=0.2),
+            clip=(-100.0, 100.0),
         )
         projected_gravity = ObsTerm(
             func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05)
@@ -272,12 +260,15 @@ class ObservationsCfg:
             func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)
         )
         joint_vel_rel = ObsTerm(
-            func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5)
+            func=mdp.joint_vel_rel,
+            scale=0.05,
+            noise=Unoise(n_min=-1.5, n_max=1.5),
+            clip=(-100.0, 100.0),
         )
         height_scanner = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            clip=(-1.0, 5.0),
+            clip=(-0.5, 1.0),
         )
         last_action = ObsTerm(func=mdp.last_action)
         # gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": 0.8})
@@ -335,7 +326,7 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=0.15)
 
     # -- base
-    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.5)
+    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.01)
     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=0)
@@ -371,7 +362,7 @@ class RewardsCfg:
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.05,
+        weight=-0.2,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot", joint_names=[".*_hip_roll_joint", ".*_hip_yaw_joint"]
@@ -380,7 +371,7 @@ class RewardsCfg:
     )
 
     # -- robot
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-3.0)
     base_height = RewTerm(
         func=mdp.base_height_l2, weight=-0.5, params={"target_height": 0.62}
     )
@@ -399,7 +390,7 @@ class RewardsCfg:
     )
     feet_slide = RewTerm(
         func=mdp.feet_slide,
-        weight=-0.2,
+        weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
@@ -419,7 +410,7 @@ class RewardsCfg:
     # -- other
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
-        weight=1.0,
+        weight=-1.0,
         params={
             "threshold": 1.0,
             "sensor_cfg": SceneEntityCfg(
@@ -432,7 +423,7 @@ class RewardsCfg:
         weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "forward_axis": 0,  # 楼梯“上行方向”对应世界系哪个轴：0=x, 1=y
+            # 删除原有的 "forward_axis": 0,
             "up_axis": 2,
             "w_forward": 1.0,
             "w_up": 1.0,
