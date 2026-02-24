@@ -392,3 +392,27 @@ def stair_progress(
         rew = rew / env.step_dt
 
     return rew
+
+def base_height_relative_l2(
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    foot_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+) -> torch.Tensor:
+    """
+    惩罚基座相对脚部平均高度的偏差。
+    此方法在斜坡和楼梯上数值更稳定，可避免地形网格突变造成的奖励尖峰。
+    """
+    asset = env.scene[asset_cfg.name]
+    
+    # 1. 获取基座 Z 轴高度
+    base_z = asset.data.root_pos_w[:, 2]
+    
+    # 2. 获取目标脚部 Link 的 Z 轴高度并求平均
+    feet_z = asset.data.body_pos_w[:, foot_cfg.body_ids, 2]
+    mean_feet_z = torch.mean(feet_z, dim=1)
+    
+    # 3. 计算相对高度
+    relative_height = base_z - mean_feet_z
+    
+    return torch.square(relative_height - target_height)

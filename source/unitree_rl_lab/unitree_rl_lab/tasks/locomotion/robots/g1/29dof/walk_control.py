@@ -27,18 +27,39 @@ class WalkControlSceneCfg(InteractiveSceneCfg):
 
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
-        terrain_type="plane",  
+        terrain_type="generator",
+        terrain_generator=terrain_gen.TerrainGeneratorCfg(
+            size=(8.0, 8.0),          # 每个地形块的尺寸
+            border_width=20.0,        # 边缘缓冲区域宽度
+            num_rows=10,              # 行数 (难度级别)
+            num_cols=20,              # 列数 (地形类型交替)
+            use_cache=False,
+            sub_terrains={
+                "rough_plane": terrain_gen.HfRandomUniformTerrainCfg(
+                    proportion=0.2,
+                    noise_range=(0.02, 0.05), # 模拟泥地或连续起伏的不平整路面
+                    noise_step=0.02,
+                ),
+                "slopes": terrain_gen.HfPyramidSlopedTerrainCfg(
+                    proportion=0.3,
+                    slope_range=(0.0, 0.6),  # 坡度范围
+                    platform_width=1.5,      # 坡顶/坡底的平坦平台宽度
+                ),
+                # "stairs": terrain_gen.HfDiscreteObstaclesTerrainCfg(
+                #     proportion=0.4,
+                #     num_obstacles=40,  # 指定每个地形块上的障碍物数量
+                #     obstacle_height_mode="choice",
+                #     obstacle_width_range=(0.4, 0.8),
+                #     obstacle_height_range=(0.05, 0.2), 
+                # ),
+            },
+        ),
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
-            static_friction=1.0,
+            static_friction=1.0,  # 基础摩擦力
             dynamic_friction=1.0,
-        ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-            project_uvw=True,
-            texture_scale=(0.25, 0.25),
         ),
         debug_vis=False,
     )
@@ -215,10 +236,42 @@ class RewardsCfg:
         weight=-1.0,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["waist.*"])},
     )
+    joint_symmetry = RewTerm(
+    func=mdp.joint_mirror,  # 确保 mdp 包含了 rewards.py 中的此函数
+    weight=-1.0,            # 使用负权重作为惩罚
+    params={
+        "asset_cfg": SceneEntityCfg("robot"),
+        "mirror_joints": [
+            ["left_hip_pitch_joint", "right_hip_pitch_joint"],
+            ["left_hip_roll_joint", "right_hip_roll_joint"],
+            ["left_hip_yaw_joint", "right_hip_yaw_joint"],
+            ["left_knee_joint", "right_knee_joint"],
+            ["left_ankle_pitch_joint", "right_ankle_pitch_joint"],
+            ["left_ankle_roll_joint", "right_ankle_roll_joint"],
+            ["left_shoulder_pitch_joint", "right_shoulder_pitch_joint"],
+            ["left_shoulder_roll_joint", "right_shoulder_roll_joint"],
+            ["left_shoulder_yaw_joint", "right_shoulder_yaw_joint"],
+            ["left_elbow_joint", "right_elbow_joint"],
+            ["left_wrist_pitch_joint", "right_wrist_pitch_joint"],
+            ["left_wrist_roll_joint", "right_wrist_roll_joint"],
+            ["left_wrist_yaw_joint", "right_wrist_yaw_joint"]
+            ]
+        }
+    )
 
     # -- 姿态控制
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
-    base_height = RewTerm(func=mdp.base_height_l2, weight=-10, params={"target_height": 0.78})
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0) 
+    
+    # 使用自定义的相对高度奖励，目标高度维持在 0.78
+    # 使用脚部相对高度奖励
+    base_height = RewTerm(
+        func=mdp.base_height_relative_l2, 
+        weight=-10.0, 
+        params={
+            "target_height": 0.78,
+            "foot_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*")
+        }
+    )
 
     # -- 步态与足端
     gait = RewTerm(
