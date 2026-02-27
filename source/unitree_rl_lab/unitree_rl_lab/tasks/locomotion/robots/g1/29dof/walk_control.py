@@ -37,12 +37,12 @@ class WalkControlSceneCfg(InteractiveSceneCfg):
             sub_terrains={
                 "rough_plane": terrain_gen.HfRandomUniformTerrainCfg(
                     proportion=0.2,
-                    noise_range=(0.02, 0.05), # 模拟泥地或连续起伏的不平整路面
+                    noise_range=(0, 0.05), # 模拟泥地或连续起伏的不平整路面
                     noise_step=0.02,
                 ),
                 "slopes": terrain_gen.HfPyramidSlopedTerrainCfg(
                     proportion=0.3,
-                    slope_range=(0.0, 0.6),  # 坡度范围
+                    slope_range=(0.0, 0.5),  # 坡度范围
                     platform_width=1.5,      # 坡顶/坡底的平坦平台宽度
                 ),
                 # "stairs": terrain_gen.HfDiscreteObstaclesTerrainCfg(
@@ -237,24 +237,39 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["waist.*"])},
     )
     joint_symmetry = RewTerm(
-    func=mdp.joint_mirror,  # 确保 mdp 包含了 rewards.py 中的此函数
-    weight=-1.0,            # 使用负权重作为惩罚
-    params={
-        "asset_cfg": SceneEntityCfg("robot"),
-        "mirror_joints": [
-            ["left_hip_pitch_joint", "right_hip_pitch_joint"],
-            ["left_hip_roll_joint", "right_hip_roll_joint"],
-            ["left_hip_yaw_joint", "right_hip_yaw_joint"],
-            ["left_knee_joint", "right_knee_joint"],
-            ["left_ankle_pitch_joint", "right_ankle_pitch_joint"],
-            ["left_ankle_roll_joint", "right_ankle_roll_joint"],
-            ["left_shoulder_pitch_joint", "right_shoulder_pitch_joint"],
-            ["left_shoulder_roll_joint", "right_shoulder_roll_joint"],
-            ["left_shoulder_yaw_joint", "right_shoulder_yaw_joint"],
-            ["left_elbow_joint", "right_elbow_joint"],
-            ["left_wrist_pitch_joint", "right_wrist_pitch_joint"],
-            ["left_wrist_roll_joint", "right_wrist_roll_joint"],
-            ["left_wrist_yaw_joint", "right_wrist_yaw_joint"]
+        func=mdp.joint_mirror,  
+        weight=-1.0,            
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mirror_joints": [
+                ["left_hip_pitch_joint", "right_hip_pitch_joint"],
+                ["left_hip_roll_joint", "right_hip_roll_joint"],
+                ["left_hip_yaw_joint", "right_hip_yaw_joint"],
+                ["left_knee_joint", "right_knee_joint"],
+                ["left_ankle_pitch_joint", "right_ankle_pitch_joint"],
+                ["left_ankle_roll_joint", "right_ankle_roll_joint"],
+                ["left_shoulder_pitch_joint", "right_shoulder_pitch_joint"],
+                ["left_shoulder_roll_joint", "right_shoulder_roll_joint"],
+                ["left_shoulder_yaw_joint", "right_shoulder_yaw_joint"],
+                ["left_elbow_joint", "right_elbow_joint"],
+                ["left_wrist_pitch_joint", "right_wrist_pitch_joint"],
+                ["left_wrist_roll_joint", "right_wrist_roll_joint"],
+                ["left_wrist_yaw_joint", "right_wrist_yaw_joint"]
+            ],
+            "mirror_signs": [
+                1.0,   # hip_pitch
+                -1.0,  # hip_roll 
+                -1.0,  # hip_yaw 
+                1.0,   # knee
+                1.0,   # ankle_pitch
+                -1.0,  # ankle_roll 
+                1.0,   # shoulder_pitch
+                -1.0,  # shoulder_roll 
+                -1.0,  # shoulder_yaw 
+                1.0,   # elbow 
+                1.0,   # wrist_pitch
+                -1.0,  # wrist_roll 
+                -1.0   # wrist_yaw 
             ]
         }
     )

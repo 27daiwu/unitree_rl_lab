@@ -265,27 +265,32 @@ Other rewards.
 
 
 def joint_mirror(
-    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, mirror_joints: list[list[str]]
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg, 
+    mirror_joints: list[list[str]],
+    mirror_signs: list[float] = None  # 新增参数
 ) -> torch.Tensor:
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     if (
         not hasattr(env, "joint_mirror_joints_cache")
         or env.joint_mirror_joints_cache is None
     ):
-        # Cache joint positions for all pairs
         env.joint_mirror_joints_cache = [
             [asset.find_joints(joint_name) for joint_name in joint_pair]
             for joint_pair in mirror_joints
         ]
+    
+    if mirror_signs is None:
+        mirror_signs = [1.0] * len(mirror_joints)
+
     reward = torch.zeros(env.num_envs, device=env.device)
-    # Iterate over all joint pairs
-    for joint_pair in env.joint_mirror_joints_cache:
-        # Calculate the difference for each pair and add to the total reward
+
+    for i, joint_pair in enumerate(env.joint_mirror_joints_cache):
+        sign = mirror_signs[i]
         reward += torch.sum(
             torch.square(
                 asset.data.joint_pos[:, joint_pair[0][0]]
-                - asset.data.joint_pos[:, joint_pair[1][0]]
+                - sign * asset.data.joint_pos[:, joint_pair[1][0]]
             ),
             dim=-1,
         )
