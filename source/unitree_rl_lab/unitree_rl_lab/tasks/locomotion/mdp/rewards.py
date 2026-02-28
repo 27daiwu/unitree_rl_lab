@@ -265,27 +265,32 @@ Other rewards.
 
 
 def joint_mirror(
-    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, mirror_joints: list[list[str]]
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg, 
+    mirror_joints: list[list[str]],
+    mirror_signs: list[float] = None  # 新增参数
 ) -> torch.Tensor:
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     if (
         not hasattr(env, "joint_mirror_joints_cache")
         or env.joint_mirror_joints_cache is None
     ):
-        # Cache joint positions for all pairs
         env.joint_mirror_joints_cache = [
             [asset.find_joints(joint_name) for joint_name in joint_pair]
             for joint_pair in mirror_joints
         ]
+    
+    if mirror_signs is None:
+        mirror_signs = [1.0] * len(mirror_joints)
+
     reward = torch.zeros(env.num_envs, device=env.device)
-    # Iterate over all joint pairs
-    for joint_pair in env.joint_mirror_joints_cache:
-        # Calculate the difference for each pair and add to the total reward
+
+    for i, joint_pair in enumerate(env.joint_mirror_joints_cache):
+        sign = mirror_signs[i]
         reward += torch.sum(
             torch.square(
                 asset.data.joint_pos[:, joint_pair[0][0]]
-                - asset.data.joint_pos[:, joint_pair[1][0]]
+                - sign * asset.data.joint_pos[:, joint_pair[1][0]]
             ),
             dim=-1,
         )
@@ -420,3 +425,36 @@ def base_height_relative_l2(
     relative_height = base_z - mean_feet_z
 
     return torch.square(relative_height - target_height)
+
+def feet_width_l2(
+    env: ManagerBasedRLEnv,
+    target_width: float = 0.15,  # G1的双脚理想间距较窄
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+) -> torch.Tensor:
+    """
+    惩罚双脚横向距离过大（解决叉开腿的核心项）。
+    """
+    asset = env.scene[asset_cfg.name]
+    # 获取左右脚的位置
+    feet_pos = asset.data.body_pos_w[:, asset_cfg.body_ids, :]
+    
+    # 计算两脚在 Y 轴（横向）的距离
+    # 假设 body_ids 只有两个，一个是左脚一个是右脚
+    foot_y_dist = torch.abs(feet_pos[:, 0, 1] - feet_pos[:, 1, 1])
+    
+    # 惩罚距离超过目标宽度的部分
+    return torch.square(foot_y_dist - target_width)
+
+def joint_regularization(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    target_pos: float = 0.0,
+) -> torch.Tensor:
+    """
+    针对特定关节的L2正则化，用于强力约束髋关节Yaw和Roll。
+    """
+    asset = env.scene[asset_cfg.name]
+    # 获取特定关节的角度
+    joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
+    
+    return torch.sum(torch.square(joint_pos - target_pos), dim=1)
