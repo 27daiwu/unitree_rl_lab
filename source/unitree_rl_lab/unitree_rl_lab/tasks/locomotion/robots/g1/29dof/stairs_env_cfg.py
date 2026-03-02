@@ -32,16 +32,16 @@ STAIRS_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
     difficulty_range=(0.0, 1.0),
     use_cache=False,
     sub_terrains={
-        # 1. 平地比例
-        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
-        # 2. 楼梯比例
-        "pyramid_stairs": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
-            proportion=0.5,
-            step_height_range=(0.0, 0.08),
-            step_width=0.30,
-            platform_width=3.0,
-            border_width=1.0,
-            holes=False,
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.2),
+        # 使用 MeshInvertedPyramidStairsTerrainCfg
+        # 这会生成一个四周高、中间低的倒金字塔，机器人出生在中间的平台上，四周都是向上的楼梯
+        "stairs": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
+            proportion=0.8,
+            step_height_range=(0.05, 0.20),  # 台阶高度范围
+            step_width=0.3,  # 台阶宽度
+            platform_width=3.0,  # 中心平坦区域的宽度（机器人出生点）
+            border_width=1.0,  # 边缘宽度
+            holes=False,  # 是否有空洞
         ),
     },
 )
@@ -73,32 +73,7 @@ class RobotSceneCfg(InteractiveSceneCfg):
         debug_vis=False,  #  禁用可视化调试
     )
     # robots
-    robot: ArticulationCfg = ROBOT_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.72),
-            joint_pos={
-                ".*_hip_pitch_joint": -0.2,  # 髋关节微屈
-                ".*_knee_joint": 0.4,  # 膝盖微弯
-                ".*_ankle_pitch_joint": -0.2,  # 脚踝微扣
-                "waist_yaw_joint": 0.0,
-                ".*_shoulder_pitch_joint": 0.0,
-                ".*_elbow_joint": 0.97,
-                #  初始姿态
-                # "left_hip_pitch_joint": -0.1,
-                # "right_hip_pitch_joint": -0.1,
-                # ".*_knee_joint": 0.3,
-                # ".*_ankle_pitch_joint": -0.2,
-                # ".*_shoulder_pitch_joint": 0.3,
-                # "left_shoulder_roll_joint": 0.25,
-                # "right_shoulder_roll_joint": -0.25,
-                # ".*_elbow_joint": 0.97,
-                # "left_wrist_roll_joint": 0.15,
-                # "right_wrist_roll_joint": -0.15,
-            },
-            joint_vel={".*": 0.0},
-        ),
-    )  #  配置机器人模型，使用ROBOT_CFG替换其中的prim_path参数
+    robot: ArticulationCfg = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     height_scanner = RayCasterCfg(  #  创建高度扫描器配置，用于射线投射
@@ -172,9 +147,8 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (0.70, 0.75),
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
                 "yaw": (-0.1, 0.1),
             },
             "velocity_range": {
@@ -218,10 +192,14 @@ class CommandsCfg:
         heading_command=False,
         debug_vis=True,
         ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.2, 0.8), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.2, 0.2)
+            lin_vel_x=(0.1, 0.4),  # 降低日常训练命令速度
+            lin_vel_y=(-0.1, 0.1),
+            ang_vel_z=(-0.2, 0.2),
         ),
         limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-0.2, 0.2)
+            lin_vel_x=(-0.2, 0.5),  # 限制最大速度边界
+            lin_vel_y=(-0.2, 0.2),
+            ang_vel_z=(-0.2, 0.2),
         ),
     )
 
@@ -373,7 +351,7 @@ class RewardsCfg:
     # -- robot
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-3.0)
     base_height = RewTerm(
-        func=mdp.base_height_l2, weight=-0.5, params={"target_height": 0.62}
+        func=mdp.base_height_relative_l2, weight=-1.0, params={"target_height": 0.70}
     )
 
     # -- feet
@@ -423,9 +401,8 @@ class RewardsCfg:
         weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            # 删除原有的 "forward_axis": 0,
             "up_axis": 2,
-            "w_forward": 1.0,
+            "w_forward": 0.0,
             "w_up": 1.0,
             "only_forward": True,
             "up_requires_forward": True,
@@ -434,11 +411,11 @@ class RewardsCfg:
         },
     )
     body_heading = RewTerm(func=mdp.heading_alignment, weight=0.5)
-    stair_milestone = RewTerm(
-        func=mdp.stair_milestone_reward,
-        weight=5.0,  # 较大权重，一次性奖励
-        params={"threshold_height": 0.15},  # 假设一级台阶左右的高度
-    )
+    # stair_milestone = RewTerm(
+    #     func=mdp.stair_milestone_reward,
+    #     weight=5.0,
+    #     params={"threshold_height": 0.15},
+    # )
 
 
 @configclass
