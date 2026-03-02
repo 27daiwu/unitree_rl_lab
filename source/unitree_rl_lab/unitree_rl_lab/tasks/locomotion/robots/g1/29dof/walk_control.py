@@ -173,7 +173,7 @@ class ObservationsCfg:
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5))
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-0.05, n_max=1.5))
         last_action = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -215,12 +215,36 @@ class RewardsCfg:
         params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
     )
     alive = RewTerm(func=mdp.is_alive, weight=0.2)
-
-    # -- 惩罚项：稳定性控制
     base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
+    hip_regularization = RewTerm(
+        func=mdp.joint_regularization, 
+        weight=-0.5,                 
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot", 
+                # 正则匹配左右腿的 Hip Yaw 和 Hip Roll
+                joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint"]
+            ),
+            "target_pos": 0.0, # 期望这些关节保持在0度附近
+        },
+    )
+    # 强制机器人走"猫步"或直线，而不是两脚分开
+    feet_width = RewTerm(
+        func=mdp.feet_width_l2,        
+        weight=-0.5,                  
+        params={
+            "target_width": 0.18,      # G1 理想的站立宽度，单位米
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+        }
+    )
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
+    joint_deviation_arms = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.2, 
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*"])},
+    )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-5.0)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
@@ -228,7 +252,7 @@ class RewardsCfg:
     # -- 关节限制 (保持手臂和腰部稳定)
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.2,
+        weight=-0.05,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*"])},
     )
     joint_deviation_waists = RewTerm(
@@ -281,7 +305,7 @@ class RewardsCfg:
     # 使用脚部相对高度奖励
     base_height = RewTerm(
         func=mdp.base_height_relative_l2, 
-        weight=-10.0, 
+        weight=-2.0, 
         params={
             "target_height": 0.78,
             "foot_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*")
