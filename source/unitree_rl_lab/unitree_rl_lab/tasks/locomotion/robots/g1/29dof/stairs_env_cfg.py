@@ -304,10 +304,10 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=0.15)
 
     # -- base
-    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.01)
+    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.10)
     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
-    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=0)
+    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-0.005)
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
@@ -376,11 +376,11 @@ class RewardsCfg:
     )
     feet_clearance = RewTerm(
         func=mdp.foot_clearance_reward,
-        weight=2.0,
+        weight=1.5,
         params={
             "std": 0.05,
             "tanh_mult": 2.0,
-            "target_height": 0.25,
+            "target_height": 0.15,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
         },
     )
@@ -413,8 +413,15 @@ class RewardsCfg:
     body_heading = RewTerm(func=mdp.heading_alignment, weight=0.5)
     stair_milestone = RewTerm(
         func=mdp.stair_milestone_reward,
-        weight=3.0,
+        weight=1.0,
         params={"threshold_height": 0.15},
+    )
+    air_time_variance = RewTerm(
+        func=mdp.air_time_variance_penalty,
+        weight=-0.5,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*")
+        },
     )
 
 

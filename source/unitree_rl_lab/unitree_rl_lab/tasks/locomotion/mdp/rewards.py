@@ -166,11 +166,22 @@ def foot_clearance_reward(
     std: float,
     tanh_mult: float,
 ) -> torch.Tensor:
-    """Reward the swinging feet for clearing a specified height off the ground"""
+    """Reward the swinging feet for clearing a specified height relative to the base."""
     asset: RigidObject = env.scene[asset_cfg.name]
-    foot_z_target_error = torch.square(
-        asset.data.body_pos_w[:, asset_cfg.body_ids, 2] - target_height
-    )
+
+    # 获取脚部和基座的世界 Z 坐标
+    feet_z = asset.data.body_pos_w[:, asset_cfg.body_ids, 2]
+    base_z = asset.data.root_pos_w[:, 2].unsqueeze(1)
+
+    # 计算相对高度 (通常为负值)。假设 G1 默认站立时基座离地约 0.7m，则触地时约为 -0.7m
+    relative_feet_z = feet_z - base_z
+
+    # 目标相对高度 = 默认站立相对高度 + 期望抬高的高度
+    # 根据机器人的实际站立 root height 微调这里的 -0.7
+    target_relative_z = -0.7 + target_height
+
+    foot_z_target_error = torch.square(relative_feet_z - target_relative_z)
+
     foot_velocity_tanh = torch.tanh(
         tanh_mult
         * torch.norm(asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2], dim=2)
@@ -265,10 +276,10 @@ Other rewards.
 
 
 def joint_mirror(
-    env: ManagerBasedRLEnv, 
-    asset_cfg: SceneEntityCfg, 
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
     mirror_joints: list[list[str]],
-    mirror_signs: list[float] = None  # 新增参数
+    mirror_signs: list[float] = None,  # 新增参数
 ) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
     if (
@@ -279,7 +290,7 @@ def joint_mirror(
             [asset.find_joints(joint_name) for joint_name in joint_pair]
             for joint_pair in mirror_joints
         ]
-    
+
     if mirror_signs is None:
         mirror_signs = [1.0] * len(mirror_joints)
 
@@ -426,6 +437,7 @@ def base_height_relative_l2(
 
     return torch.square(relative_height - target_height)
 
+
 def feet_width_l2(
     env: ManagerBasedRLEnv,
     target_width: float = 0.15,  # G1的双脚理想间距较窄
@@ -437,13 +449,14 @@ def feet_width_l2(
     asset = env.scene[asset_cfg.name]
     # 获取左右脚的位置
     feet_pos = asset.data.body_pos_w[:, asset_cfg.body_ids, :]
-    
+
     # 计算两脚在 Y 轴（横向）的距离
     # 假设 body_ids 只有两个，一个是左脚一个是右脚
     foot_y_dist = torch.abs(feet_pos[:, 0, 1] - feet_pos[:, 1, 1])
-    
+
     # 惩罚距离超过目标宽度的部分
     return torch.square(foot_y_dist - target_width)
+
 
 def joint_regularization(
     env: ManagerBasedRLEnv,
@@ -456,5 +469,5 @@ def joint_regularization(
     asset = env.scene[asset_cfg.name]
     # 获取特定关节的角度
     joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
-    
+
     return torch.sum(torch.square(joint_pos - target_pos), dim=1)
