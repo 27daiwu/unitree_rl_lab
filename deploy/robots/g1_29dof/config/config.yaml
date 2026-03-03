@@ -79,13 +79,13 @@ FSM:
     transitions: 
       Passive: LT + B.on_pressed
       FixStand: LT + X.on_pressed # 退回站立状态
-    policy_dir: config/policy/Walk 
+    policy_dir: config/policy/walk 
 
   Stairs: 
     transitions: 
       Passive: LT + B.on_pressed
       FixStand: LT + X.on_pressed # 退回站立状态
-    policy_dir: config/policy/Stairs 
+    policy_dir: config/policy/stairs 
 
   Mimic_Dance_102:
     transitions: 
