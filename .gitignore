@@ -74,3 +74,4 @@ datasets
 # Mimic
 *.npz
 source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py
+deploy/robots/g1_29dof/config/policy/stairs/policy.onnx
