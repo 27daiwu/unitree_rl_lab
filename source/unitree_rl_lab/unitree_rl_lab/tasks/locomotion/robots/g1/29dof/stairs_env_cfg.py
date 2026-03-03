@@ -192,12 +192,12 @@ class CommandsCfg:
         heading_command=False,
         debug_vis=True,
         ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(0.1, 0.4),  # 降低日常训练命令速度
+            lin_vel_x=(0.3, 0.6),
             lin_vel_y=(-0.1, 0.1),
             ang_vel_z=(-0.2, 0.2),
         ),
         limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.2, 0.5),  # 限制最大速度边界
+            lin_vel_x=(-0.2, 0.5),
             lin_vel_y=(-0.2, 0.2),
             ang_vel_z=(-0.2, 0.2),
         ),
@@ -349,7 +349,7 @@ class RewardsCfg:
     )
 
     # -- robot
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-3.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-0.5)
     base_height = RewTerm(
         func=mdp.base_height_relative_l2, weight=-1.0, params={"target_height": 0.70}
     )
@@ -380,7 +380,7 @@ class RewardsCfg:
         params={
             "std": 0.05,
             "tanh_mult": 2.0,
-            "target_height": 0.12,
+            "target_height": 0.25,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
         },
     )
@@ -388,7 +388,7 @@ class RewardsCfg:
     # -- other
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
-        weight=-1.0,
+        weight=-0.2,
         params={
             "threshold": 1.0,
             "sensor_cfg": SceneEntityCfg(
@@ -411,11 +411,11 @@ class RewardsCfg:
         },
     )
     body_heading = RewTerm(func=mdp.heading_alignment, weight=0.5)
-    # stair_milestone = RewTerm(
-    #     func=mdp.stair_milestone_reward,
-    #     weight=5.0,
-    #     params={"threshold_height": 0.15},
-    # )
+    stair_milestone = RewTerm(
+        func=mdp.stair_milestone_reward,
+        weight=3.0,
+        params={"threshold_height": 0.15},
+    )
 
 
 @configclass
