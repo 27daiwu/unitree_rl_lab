@@ -1,7 +1,7 @@
 import gymnasium as gym
 
 gym.register(
-    id="Unitree-G1-29dof-Mimic-motion_1",
+    id="Unitree-G1-29dof-Mimic-lafan1_aiming1",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
