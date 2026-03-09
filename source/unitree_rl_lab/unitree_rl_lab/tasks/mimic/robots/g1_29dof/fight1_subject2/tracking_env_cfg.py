@@ -38,7 +38,7 @@ VELOCITY_RANGE = {
     "yaw": (-0.78, 0.78),
 }
 
-
+#导出policy：./unitree_rl_lab.sh -p --task=Unitree-G1-29dof-Mimic-fight1_subject2 --experiment_name=fight1_subject2
 @configclass
 class RobotSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
@@ -92,7 +92,7 @@ class CommandsCfg:
         asset_name="robot",
         # generate npz file before training
         # python python scripts/mimic/csv_to_npz.py -f path/to/G1_Take_102.bvh_60hz.csv --input_fps 60
-        motion_file=f"{os.path.dirname(__file__)}/converted_motion.npz",
+        motion_file=f"{os.path.dirname(__file__)}/fight1_subject2.npz",
         anchor_body_name="torso_link",
         resampling_time_range=(1.0e9, 1.0e9),
         debug_vis=True,
