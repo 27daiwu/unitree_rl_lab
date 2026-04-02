@@ -1,0 +1,7 @@
+恢复训练
+./unitree_rl_lab.sh --train \
+  --task Unitree-G1-29dof-Walk \
+  --resume \
+  --max_iterations 40000 \
+  agent.load_run=2026-03-31_20-15-00 \
+  agent.load_checkpoint=model_25400.pt

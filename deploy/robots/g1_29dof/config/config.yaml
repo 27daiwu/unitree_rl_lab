@@ -10,9 +10,6 @@ FSM:
     Walk: 
       id: 4
       type: RLBase
-    Stairs: 
-      id: 5
-      type: RLBase
 
     Mimic_Dance_102: # uncomment to enable
       id: 101
@@ -42,6 +39,7 @@ FSM:
     transitions: 
       Passive: LT + B.on_pressed
       Velocity: RB + X.on_pressed
+      Walk: LT + A.on_pressed
     kp: [
       100., 100., 100., 150., 40., 40.,
       100., 100., 100., 150., 40., 40.,
@@ -69,6 +67,7 @@ FSM:
   Velocity:
     transitions: 
       Passive: LT + B.on_pressed
+      Walk: LT + A.on_pressed
       Mimic_Dance_102: LT(2s) + down.on_pressed
       Mimic_Gangnam_Style: LT(2s) + left.on_pressed
 
@@ -80,12 +79,6 @@ FSM:
       Passive: LT + B.on_pressed
       FixStand: LT + X.on_pressed # 退回站立状态
     policy_dir: config/policy/walk 
-
-  Stairs: 
-    transitions: 
-      Passive: LT + B.on_pressed
-      FixStand: LT + X.on_pressed # 退回站立状态
-    policy_dir: config/policy/stairs 
 
   Mimic_Dance_102:
     transitions: 

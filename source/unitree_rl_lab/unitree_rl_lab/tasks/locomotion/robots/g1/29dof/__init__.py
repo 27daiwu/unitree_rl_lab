@@ -27,9 +27,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.walk_control:RobotWalkEnvCfg",
-        "play_env_cfg_entry_point": f"{__name__}.walk_control:RobotWalkPlayEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.walk_control:RobotEnvCfg",
+        "play_env_cfg_entry_point": f"{__name__}.walk_control:RobotPlayEnvCfg",
         "rsl_rl_cfg_entry_point": f"unitree_rl_lab.tasks.locomotion.agents.rsl_rl_ppo_cfg:BasePPORunnerCfg",
     },
 )
-
