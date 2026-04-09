@@ -21,6 +21,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG as ROBOT_CFG
 from unitree_rl_lab.tasks.locomotion import mdp
 
+# ./unitree_rl_lab.sh -p --task=Unitree-G1-29dof-Mimic-fight1_subject2 --experiment_name=fight1_subject2
 
 FLAT_ONLY_TERRAIN_CFG = terrain_gen.TerrainGeneratorCfg(
     size=(8.0, 8.0),

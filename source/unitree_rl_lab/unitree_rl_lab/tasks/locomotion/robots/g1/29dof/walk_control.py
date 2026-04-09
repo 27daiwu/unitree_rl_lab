@@ -155,14 +155,14 @@ class CommandsCfg:
         heading_command=False,
         debug_vis=True,
         ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.30, 0.45),
-            lin_vel_y=(-0.18, 0.18),
-            ang_vel_z=(-0.45, 0.45),
+            lin_vel_x=(-0.20, 0.30),
+            lin_vel_y=(-0.10, 0.10),
+            ang_vel_z=(-0.30, 0.30),
         ),
         limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.35, 0.60),
-            lin_vel_y=(-0.22, 0.22),
-            ang_vel_z=(-0.60, 0.60),
+            lin_vel_x=(-0.25, 0.40),
+            lin_vel_y=(-0.15, 0.15),
+            ang_vel_z=(-0.40, 0.40),
         ),
     )
 
@@ -174,7 +174,7 @@ class ActionsCfg:
     JointPositionAction = mdp.JointPositionActionCfg(
         asset_name="robot",
         joint_names=[".*"],
-        scale=0.18,
+        scale=0.14,
         use_default_offset=True,
     )
 
@@ -193,6 +193,10 @@ class ObservationsCfg:
         )
         velocity_commands = ObsTerm(
             func=mdp.generated_commands, params={"command_name": "base_velocity"}
+        )
+        gait_phase = ObsTerm(
+            func=mdp.gait_phase,
+            params={"period": 0.90},
         )
         joint_pos_rel = ObsTerm(
             func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.005, n_max=0.005)
@@ -229,35 +233,43 @@ class ObservationsCfg:
 
 @configclass
 class RewardsCfg:
-    """Stable-walk reward shaping for flat-ground teleoperation."""
-
     track_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=2.8,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.16)},
+        weight=2.5,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.20)},
     )
     track_ang_vel_z = RewTerm(
         func=mdp.track_ang_vel_z_exp,
-        weight=2.0,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.16)},
+        weight=1.6,
+        params={"command_name": "base_velocity", "std": math.sqrt(0.20)},
     )
     alive = RewTerm(func=mdp.is_alive, weight=0.20)
 
     lin_vel_z = RewTerm(func=mdp.lin_vel_z_l2, weight=-3.0)
-    ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.40)
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-8.0)
+    ang_vel_xy = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.6)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-10.0)
     base_height = RewTerm(
-        func=mdp.base_height_l2, weight=-10.0, params={"target_height": 0.78}
+        func=mdp.base_height_l2, weight=-8.0, params={"target_height": 0.78}
     )
 
-    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.002)
-    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-1.0e-6)
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.15)
+    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.003)
+    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.0e-6)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.25)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-6.0)
+
+    stand_still_joint_pos = RewTerm(
+        func=mdp.joint_position_penalty,
+        weight=-1.5,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "stand_still_scale": 3.0,
+            "velocity_threshold": 0.15,
+        },
+    )
 
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.05,
+        weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -271,12 +283,12 @@ class RewardsCfg:
     )
     joint_deviation_waists = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-1.5,
+        weight=-2.0,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["waist.*"])},
     )
     joint_deviation_legs = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-1.2,
+        weight=-1.5,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
@@ -285,9 +297,29 @@ class RewardsCfg:
         },
     )
 
+    feet_width = RewTerm(
+        func=mdp.feet_width_l2,
+        weight=-1.5,
+        params={
+            "target_width": 0.16,
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+        },
+    )
+    hip_regularization = RewTerm(
+        func=mdp.joint_regularization,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*_hip_roll_joint", ".*_hip_yaw_joint"],
+            ),
+            "target_pos": 0.0,
+        },
+    )
+
     gait = RewTerm(
         func=mdp.feet_gait,
-        weight=0.6,
+        weight=0.8,
         params={
             "period": 0.90,
             "offset": [0.0, 0.5],
@@ -298,7 +330,7 @@ class RewardsCfg:
     )
     feet_slide = RewTerm(
         func=mdp.feet_slide,
-        weight=-0.35,
+        weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
@@ -306,11 +338,11 @@ class RewardsCfg:
     )
     feet_clearance = RewTerm(
         func=mdp.foot_clearance_reward,
-        weight=0.6,
+        weight=0.4,
         params={
-            "std": 0.08,
-            "tanh_mult": 1.2,
-            "target_height": 0.08,
+            "std": 0.10,
+            "tanh_mult": 1.0,
+            "target_height": 0.06,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
         },
     )
